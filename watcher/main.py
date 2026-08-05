@@ -37,10 +37,23 @@ class LogFileHandler(FileSystemEventHandler):
         if size < self._position:
             self._position = 0
 
-        with open(self.log_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(self.log_path, "rb") as f:
             f.seek(self._position)
-            new_lines = f.read().splitlines()
-            self._position = f.tell()
+            chunk = f.read()
+
+        # Only treat text up to the last newline as "complete" — a chunk read
+        # while the writer is mid-line (e.g. a multi-line stack trace still
+        # being flushed) must not be consumed as if it were a full line, and
+        # _position must not advance past bytes we haven't actually processed.
+        last_newline_idx = chunk.rfind(b"\n")
+        if last_newline_idx == -1:
+            # No complete line yet in this chunk; leave _position untouched
+            # so the next read re-reads these bytes plus whatever is appended.
+            return
+
+        complete_bytes = chunk[: last_newline_idx + 1]
+        self._position += len(complete_bytes)
+        new_lines = complete_bytes.decode("utf-8", errors="replace").splitlines()
 
         for line in new_lines:
             completed_event = self.accumulator.feed_line(line)

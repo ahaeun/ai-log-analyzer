@@ -79,3 +79,17 @@ api_key_env: WATCHER_API_KEY
 
     with pytest.raises(ValueError, match="custom_pattern must define named groups"):
         load_server_config(path)
+
+
+def test_custom_format_invalid_regex_raises_value_error(tmp_path):
+    path = _write_yaml(tmp_path, r"""
+server_id: server-a
+log_path: /var/log/app/application.log
+format: custom
+custom_pattern: '(?P<timestamp>['
+central_endpoint: https://collector.example.com/api/errors
+api_key_env: WATCHER_API_KEY
+""")
+
+    with pytest.raises(ValueError, match="invalid custom_pattern regex"):
+        load_server_config(path)

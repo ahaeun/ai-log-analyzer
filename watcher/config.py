@@ -20,7 +20,10 @@ def load_server_config(path: str) -> ServerConfig:
     if data["format"] == "custom":
         if not custom_pattern:
             raise ValueError("custom_pattern is required when format is 'custom'")
-        compiled = re.compile(custom_pattern)
+        try:
+            compiled = re.compile(custom_pattern)
+        except re.error as e:
+            raise ValueError(f"invalid custom_pattern regex: {e}") from e
         missing_groups = REQUIRED_CUSTOM_GROUPS - set(compiled.groupindex.keys())
         if missing_groups:
             raise ValueError(
