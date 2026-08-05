@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -109,6 +110,49 @@ def test_flush_queue_keeps_events_that_still_fail(tmp_path):
     assert has_remaining is True
     with open(sender.queue_path) as f:
         assert json.loads(f.readline())["server_id"] == "server-a"
+
+
+def test_concurrent_send_does_not_lose_queued_events(tmp_path):
+    sender = EventSender(CONFIG, queue_dir=str(tmp_path))
+
+    thread_count = 20
+    threads = []
+    stop_flushing = threading.Event()
+
+    # Also hammer flush_queue() concurrently from a background thread, the way
+    # the real retry-loop thread would. requests.post always returns 500, so
+    # flush_queue() classifies every event as RETRY and never actually removes
+    # anything - it only exercises the read-modify-write race against
+    # concurrent _enqueue() calls without changing the expected final count.
+    def flush_repeatedly():
+        while not stop_flushing.is_set():
+            sender.flush_queue()
+
+    with patch("watcher.sender.requests.post", return_value=FakeResponse(500)):
+        flusher = threading.Thread(target=flush_repeatedly)
+        flusher.start()
+
+        for _ in range(thread_count):
+            t = threading.Thread(target=sender.send, args=(EVENT,))
+            threads.append(t)
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        stop_flushing.set()
+        flusher.join()
+
+    with open(sender.queue_path) as f:
+        lines = [line for line in f.read().splitlines() if line]
+    assert len(lines) == thread_count
+
+
+def test_missing_api_key_env_raises_value_error(tmp_path, monkeypatch):
+    monkeypatch.delenv("WATCHER_API_KEY", raising=False)
+
+    with pytest.raises(ValueError):
+        EventSender(CONFIG, queue_dir=str(tmp_path))
 
 
 def test_next_retry_interval_doubles_up_to_cap():
