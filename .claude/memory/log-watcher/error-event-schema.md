@@ -24,5 +24,5 @@ analyzer는 수집 API에서 이 필드를 그대로 받는다고 가정하고 �
 
 ## 전송 방식
 - HTTP POST, JSON body
-- 헤더: `X-API-Key: <서버별 설정의 api_key_env가 가리키는 환경변수 값>`
+- 헤더: `X-API-Key: <watcher 전체가 공유하는 WatcherConfig.api_key_env가 가리키는 환경변수 값>` (2026-08-06 SSH 재설계 이후 서버별이 아닌 watcher 프로세스 전체가 공유하는 하나의 키다)
 - 전송 실패(네트워크 오류, timeout, 5xx) 시 워처가 로컬에서 재시도하므로, analyzer는 동일 이벤트가 지연되어 도착할 수 있음을 고려해야 한다 (중복 수신 자체는 없음 — 워처가 성공한 요청만 큐에서 제거).
