@@ -1,23 +1,27 @@
 import pytest
 
-from watcher.models import ServerConfig
+from watcher.models import ServerEntry
 from watcher.parser import ErrorEventAccumulator, LogParser
 
-DEFAULT_CONFIG = ServerConfig(
+DEFAULT_CONFIG = ServerEntry(
     server_id="server-a",
+    host="10.0.1.10",
+    port=22,
+    username="deploy",
+    ssh_key_path="/home/watcher/.ssh/server-a.pem",
     log_path="/var/log/app/application.log",
     format="default",
-    central_endpoint="https://collector.example.com/api/errors",
-    api_key_env="WATCHER_API_KEY",
 )
 
-CUSTOM_CONFIG = ServerConfig(
+CUSTOM_CONFIG = ServerEntry(
     server_id="server-b",
+    host="10.0.1.11",
+    port=22,
+    username="deploy",
+    ssh_key_path="/home/watcher/.ssh/server-b.pem",
     log_path="/var/log/app/custom.log",
     format="custom",
     custom_pattern=r"^(?P<timestamp>\S+)\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+(?P<message>.*)$",
-    central_endpoint="https://collector.example.com/api/errors",
-    api_key_env="WATCHER_API_KEY",
 )
 
 DEFAULT_LOG_LINES = [
@@ -79,7 +83,7 @@ def test_flush_emits_pending_error_at_end_of_stream():
     parser = LogParser(DEFAULT_CONFIG)
     accumulator = ErrorEventAccumulator(parser)
 
-    events = _feed_all(accumulator, DEFAULT_LOG_LINES[:3])  # ends mid-stack-trace, no next entry
+    events = _feed_all(accumulator, DEFAULT_LOG_LINES[:3])
     assert events == []
 
     final_event = accumulator.flush()

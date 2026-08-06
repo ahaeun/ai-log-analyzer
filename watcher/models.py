@@ -3,12 +3,14 @@ from typing import Optional
 
 
 @dataclass
-class ServerConfig:
+class ServerEntry:
     server_id: str
+    host: str
+    port: int
+    username: str
+    ssh_key_path: str
     log_path: str
     format: str
-    central_endpoint: str
-    api_key_env: str
     custom_pattern: Optional[str] = None
 
     def __post_init__(self):
@@ -18,6 +20,16 @@ class ServerConfig:
             )
         if self.format == "custom" and not self.custom_pattern:
             raise ValueError("custom_pattern is required when format is 'custom'")
+
+
+@dataclass
+class WatcherConfig:
+    registry_url: str
+    analyzer_endpoint: str
+    api_key_env: str
+    queue_dir: str = "watcher/.queue"
+    registry_poll_interval: int = 30
+    log_poll_interval: int = 15
 
 
 @dataclass

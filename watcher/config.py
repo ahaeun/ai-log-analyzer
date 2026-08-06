@@ -1,14 +1,12 @@
-import re
-
 import yaml
 
-from watcher.models import ServerConfig
+from watcher.models import WatcherConfig
 
-REQUIRED_FIELDS = ("server_id", "log_path", "format", "central_endpoint", "api_key_env")
-REQUIRED_CUSTOM_GROUPS = {"timestamp", "level", "message"}
+REQUIRED_FIELDS = ("registry_url", "analyzer_endpoint", "api_key_env")
+OPTIONAL_FIELDS = ("queue_dir", "registry_poll_interval", "log_poll_interval")
 
 
-def load_server_config(path: str) -> ServerConfig:
+def load_watcher_config(path: str) -> WatcherConfig:
     with open(path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
@@ -16,25 +14,9 @@ def load_server_config(path: str) -> ServerConfig:
     if missing:
         raise ValueError(f"Missing required config fields: {missing}")
 
-    custom_pattern = data.get("custom_pattern")
-    if data["format"] == "custom":
-        if not custom_pattern:
-            raise ValueError("custom_pattern is required when format is 'custom'")
-        try:
-            compiled = re.compile(custom_pattern)
-        except re.error as e:
-            raise ValueError(f"invalid custom_pattern regex: {e}") from e
-        missing_groups = REQUIRED_CUSTOM_GROUPS - set(compiled.groupindex.keys())
-        if missing_groups:
-            raise ValueError(
-                f"custom_pattern must define named groups: {sorted(missing_groups)}"
-            )
+    kwargs = {field: data[field] for field in REQUIRED_FIELDS}
+    for field in OPTIONAL_FIELDS:
+        if field in data:
+            kwargs[field] = data[field]
 
-    return ServerConfig(
-        server_id=data["server_id"],
-        log_path=data["log_path"],
-        format=data["format"],
-        central_endpoint=data["central_endpoint"],
-        api_key_env=data["api_key_env"],
-        custom_pattern=custom_pattern,
-    )
+    return WatcherConfig(**kwargs)
