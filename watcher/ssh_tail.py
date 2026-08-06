@@ -48,7 +48,7 @@ class SSHTailer:
             )
             self._client = client
             return True
-        except (paramiko.SSHException, OSError):
+        except (paramiko.SSHException, OSError, EOFError):
             self._client = None
             return False
 
@@ -56,7 +56,6 @@ class SSHTailer:
         if self._client is not None:
             self._client.close()
         self._client = None
-        self._offset = None
 
     def _run_command(self, command):
         try:
@@ -65,7 +64,7 @@ class SSHTailer:
             if exit_status != 0:
                 return None
             return stdout.read()
-        except (paramiko.SSHException, OSError):
+        except (paramiko.SSHException, OSError, EOFError):
             return None
 
     def _remote_size(self):

@@ -73,6 +73,67 @@ def test_connection_failure_returns_empty_and_retries_next_call():
     assert tailer._client is None
 
 
+def test_eof_error_during_connect_returns_empty_and_retries_next_call():
+    with patch("watcher.ssh_tail.paramiko.SSHClient") as mock_ssh_client_cls:
+        mock_ssh_client_cls.return_value.connect.side_effect = EOFError("channel closed")
+        tailer = SSHTailer(ENTRY)
+        result = tailer.read_new_bytes()
+
+    assert result == ""
+    assert tailer._client is None
+
+
+def test_eof_error_during_command_returns_empty_without_raising():
+    client = MagicMock()
+    client.exec_command.side_effect = EOFError("channel closed mid-command")
+
+    with patch("watcher.ssh_tail.paramiko.SSHClient", return_value=client):
+        tailer = SSHTailer(ENTRY)
+        result = tailer.read_new_bytes()
+
+    assert result == ""
+
+
+def test_transient_command_failure_preserves_offset_for_resume():
+    call_count = {"n": 0}
+    client = MagicMock()
+
+    def exec_command(command, timeout=None):
+        stdout = MagicMock()
+        if "stat -c%s" in command:
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                stdout.channel.recv_exit_status.return_value = 0
+                stdout.read.return_value = b"100\n"
+            elif call_count["n"] == 2:
+                raise OSError("connection reset")
+            else:
+                stdout.channel.recv_exit_status.return_value = 0
+                stdout.read.return_value = b"150\n"
+        elif "tail -c" in command:
+            assert command.strip().startswith("tail -c +101")
+            stdout.channel.recv_exit_status.return_value = 0
+            stdout.read.return_value = b"resumed error line\n"
+        return (MagicMock(), stdout, MagicMock())
+
+    client.exec_command.side_effect = exec_command
+
+    with patch("watcher.ssh_tail.paramiko.SSHClient", return_value=client):
+        tailer = SSHTailer(ENTRY)
+        first = tailer.read_new_bytes()
+        assert first == ""
+        assert tailer._offset == 100
+
+        second = tailer.read_new_bytes()
+        assert second == ""
+        assert tailer._offset == 100
+
+        third = tailer.read_new_bytes()
+
+    assert third == "resumed error line\n"
+    assert tailer._offset == 150
+
+
 def test_rotation_resets_offset_and_rereads_from_start():
     call_count = {"n": 0}
     client = MagicMock()
