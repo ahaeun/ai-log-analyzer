@@ -9,7 +9,7 @@ def fetch_servers(registry_url):
     data = response.json()
 
     if not isinstance(data, list):
-        return [], [("<unknown>", f"registry response is not a JSON array: {type(data).__name__}")]
+        raise ValueError(f"registry response is not a JSON array: {type(data).__name__}")
 
     servers = []
     skipped = []

@@ -122,13 +122,10 @@ def test_fetch_servers_skips_non_dict_entry():
     assert skipped[0][0] == "<unknown>"
 
 
-def test_fetch_servers_returns_empty_when_response_body_is_not_a_list():
+def test_fetch_servers_raises_when_response_body_is_not_a_list():
     with patch(
         "watcher.registry_client.requests.get",
         return_value=FakeResponse({"error": "not a list"}),
     ):
-        servers, skipped = fetch_servers("http://dashboard/api/servers")
-
-    assert servers == []
-    assert len(skipped) == 1
-    assert skipped[0][0] == "<unknown>"
+        with pytest.raises(ValueError, match="not a JSON array"):
+            fetch_servers("http://dashboard/api/servers")
