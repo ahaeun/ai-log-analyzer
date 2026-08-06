@@ -8,9 +8,15 @@ def fetch_servers(registry_url):
     response.raise_for_status()
     data = response.json()
 
+    if not isinstance(data, list):
+        return [], [("<unknown>", f"registry response is not a JSON array: {type(data).__name__}")]
+
     servers = []
     skipped = []
     for item in data:
+        if not isinstance(item, dict):
+            skipped.append(("<unknown>", f"server entry is not a JSON object: {type(item).__name__}"))
+            continue
         try:
             servers.append(ServerEntry(**item))
         except (TypeError, ValueError) as e:

@@ -1,4 +1,8 @@
+import logging
+
 import paramiko
+
+logger = logging.getLogger(__name__)
 
 
 class SSHTailer:
@@ -27,13 +31,18 @@ class SSHTailer:
         if size == self._offset:
             return ""
 
-        text = self._remote_tail_from(self._offset)
-        if text is None:
+        raw = self._remote_tail_from(self._offset)
+        if raw is None:
             self._disconnect()
             return ""
 
-        self._offset = size
-        return text
+        last_newline_idx = raw.rfind(b"\n")
+        if last_newline_idx == -1:
+            return ""  # only a partial line has arrived so far — wait for more
+
+        complete = raw[:last_newline_idx + 1]
+        self._offset += len(complete)
+        return complete.decode(errors="replace")
 
     def _connect(self):
         try:
@@ -48,7 +57,8 @@ class SSHTailer:
             )
             self._client = client
             return True
-        except (paramiko.SSHException, OSError, EOFError):
+        except (paramiko.SSHException, OSError, EOFError) as e:
+            logger.warning("SSH connect failed for server %s: %s", self.entry.server_id, e)
             self._client = None
             return False
 
@@ -64,7 +74,8 @@ class SSHTailer:
             if exit_status != 0:
                 return None
             return stdout.read()
-        except (paramiko.SSHException, OSError, EOFError):
+        except (paramiko.SSHException, OSError, EOFError) as e:
+            logger.warning("SSH command failed for server %s: %s", self.entry.server_id, e)
             return None
 
     def _remote_size(self):
@@ -77,7 +88,4 @@ class SSHTailer:
             return None
 
     def _remote_tail_from(self, offset):
-        output = self._run_command(f"tail -c +{offset + 1} {self.entry.log_path}")
-        if output is None:
-            return None
-        return output.decode(errors="replace")
+        return self._run_command(f"tail -c +{offset + 1} {self.entry.log_path}")

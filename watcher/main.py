@@ -1,4 +1,5 @@
 import argparse
+import logging
 import threading
 import time
 
@@ -7,6 +8,8 @@ from watcher.parser import ErrorEventAccumulator, LogParser
 from watcher.registry_client import fetch_servers
 from watcher.sender import EventSender
 from watcher.ssh_tail import SSHTailer
+
+logger = logging.getLogger(__name__)
 
 
 class WatcherManager:
@@ -18,15 +21,21 @@ class WatcherManager:
 
     def sync_registry(self):
         try:
-            servers, _skipped = fetch_servers(self.config.registry_url)
-        except Exception:
+            servers, skipped = fetch_servers(self.config.registry_url)
+        except Exception as e:
+            logger.warning("registry fetch failed, keeping last known server list: %s", e)
             return
+
+        for server_id, reason in skipped:
+            logger.warning("skipping invalid server entry %s: %s", server_id, reason)
 
         current_ids = {entry.server_id for entry in servers}
 
         with self._lock:
             for server_id in list(self._active.keys()):
                 if server_id not in current_ids:
+                    tailer, _accumulator = self._active[server_id]
+                    tailer._disconnect()
                     del self._active[server_id]
 
             for entry in servers:
@@ -81,7 +90,6 @@ def run(config_path):
     config = load_watcher_config(config_path)
     sender = EventSender(config)
     manager = WatcherManager(config, sender)
-    manager.sync_registry()
     stop_event = threading.Event()
     manager.run(stop_event)
 

@@ -60,7 +60,7 @@ def test_second_read_returns_only_new_bytes():
 
     assert first == ""
     assert second == "new error line\n"
-    assert tailer._offset == 120
+    assert tailer._offset == 115
 
 
 def test_connection_failure_returns_empty_and_retries_next_call():
@@ -131,7 +131,7 @@ def test_transient_command_failure_preserves_offset_for_resume():
         third = tailer.read_new_bytes()
 
     assert third == "resumed error line\n"
-    assert tailer._offset == 150
+    assert tailer._offset == 119
 
 
 def test_rotation_resets_offset_and_rereads_from_start():
@@ -159,4 +159,37 @@ def test_rotation_resets_offset_and_rereads_from_start():
         result = tailer.read_new_bytes()
 
     assert result == "after rotation\n"
-    assert tailer._offset == 20
+    assert tailer._offset == 15
+
+
+def test_partial_trailing_line_is_withheld_until_complete():
+    call_count = {"n": 0}
+    client = MagicMock()
+    partial_raw = b"complete error line\njava.lang.RuntimeExcep"
+
+    def exec_command(command, timeout=None):
+        stdout = MagicMock()
+        if "stat -c%s" in command:
+            call_count["n"] += 1
+            size = b"100\n" if call_count["n"] == 1 else b"142\n"
+            stdout.channel.recv_exit_status.return_value = 0
+            stdout.read.return_value = size
+        elif "tail -c" in command:
+            assert command.strip().startswith("tail -c +101")
+            stdout.channel.recv_exit_status.return_value = 0
+            stdout.read.return_value = partial_raw
+        return (MagicMock(), stdout, MagicMock())
+
+    client.exec_command.side_effect = exec_command
+
+    with patch("watcher.ssh_tail.paramiko.SSHClient", return_value=client):
+        tailer = SSHTailer(ENTRY)
+        first = tailer.read_new_bytes()
+        offset_before = tailer._offset
+        second = tailer.read_new_bytes()
+
+    assert first == ""
+    assert offset_before == 100
+    assert second == "complete error line\n"
+    assert tailer._offset == offset_before + len(b"complete error line\n")
+    assert tailer._offset == 120

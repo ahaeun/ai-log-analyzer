@@ -148,6 +148,18 @@ def test_concurrent_send_and_flush_do_not_lose_events(tmp_path):
     assert len(lines) == 20
 
 
+def test_lock_for_is_isolated_per_server_but_stable_per_server(tmp_path):
+    config = _make_config(tmp_path)
+    sender = EventSender(config)
+
+    lock_a1 = sender._lock_for("server-a")
+    lock_a2 = sender._lock_for("server-a")
+    lock_b = sender._lock_for("server-b")
+
+    assert lock_a1 is lock_a2
+    assert lock_a1 is not lock_b
+
+
 def test_next_retry_interval_doubles_up_to_cap():
     assert next_retry_interval(30, True) == 60
     assert next_retry_interval(240, True) == 300

@@ -23,12 +23,19 @@ def next_retry_interval(current_interval, queue_still_has_events, base_seconds=3
 class EventSender:
     def __init__(self, config):
         self.config = config
-        os.makedirs(config.queue_dir, exist_ok=True)
-        self._queue_lock = threading.Lock()
         if not os.environ.get(config.api_key_env):
             raise ValueError(
                 f"Environment variable {config.api_key_env!r} is not set (required for API key)"
             )
+        os.makedirs(config.queue_dir, exist_ok=True)
+        self._locks_guard = threading.Lock()
+        self._queue_locks = {}
+
+    def _lock_for(self, server_id):
+        with self._locks_guard:
+            if server_id not in self._queue_locks:
+                self._queue_locks[server_id] = threading.Lock()
+            return self._queue_locks[server_id]
 
     def send(self, event):
         result = self._post_event(event.to_dict())
@@ -39,12 +46,13 @@ class EventSender:
     def flush_queue(self):
         has_remaining = False
         for queue_path in sorted(glob.glob(os.path.join(self.config.queue_dir, "*.jsonl"))):
-            if self._flush_one_queue_file(queue_path):
+            server_id = os.path.splitext(os.path.basename(queue_path))[0]
+            if self._flush_one_queue_file(server_id, queue_path):
                 has_remaining = True
         return has_remaining
 
-    def _flush_one_queue_file(self, queue_path):
-        with self._queue_lock:
+    def _flush_one_queue_file(self, server_id, queue_path):
+        with self._lock_for(server_id):
             with open(queue_path, "r", encoding="utf-8") as f:
                 lines = [line for line in f.read().splitlines() if line]
 
@@ -91,6 +99,6 @@ class EventSender:
 
     def _enqueue(self, server_id, event_dict):
         queue_path = os.path.join(self.config.queue_dir, f"{server_id}.jsonl")
-        with self._queue_lock:
+        with self._lock_for(server_id):
             with open(queue_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(event_dict) + "\n")
