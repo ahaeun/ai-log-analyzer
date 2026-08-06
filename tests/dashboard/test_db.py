@@ -1,5 +1,3 @@
-import time
-
 import pytest
 
 from dashboard import db
@@ -42,11 +40,12 @@ def test_list_servers_ordered_by_id(db_path):
     assert [s["server_id"] for s in servers] == ["server-a", "server-b"]
 
 
-def test_update_server_changes_fields_and_updated_at(db_path):
+def test_update_server_changes_fields_and_updated_at(db_path, monkeypatch):
+    monkeypatch.setattr(db, "_now_iso", lambda: "2026-08-06T10:00:00+09:00")
     db.insert_server(db_path, "server-a", "10.0.1.10", 22, "deploy", "k", "l", "default", None)
     original = db.get_server(db_path, "server-a")
-    time.sleep(1.1)  # Ensure updated_at timestamp differs (second precision)
 
+    monkeypatch.setattr(db, "_now_iso", lambda: "2026-08-06T10:00:01+09:00")
     db.update_server(
         db_path, "server-a", "10.0.1.99", 2222, "ops",
         "/new/key.pem", "/var/log/new.log", "custom",
