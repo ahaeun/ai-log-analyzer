@@ -1,126 +1,122 @@
-import os
-import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from watcher.main import LogFileHandler
-from watcher.models import ServerConfig
-from watcher.parser import ErrorEventAccumulator, LogParser
+from watcher.main import WatcherManager
+from watcher.models import ServerEntry, WatcherConfig
 
-CONFIG = ServerConfig(
-    server_id="server-a",
-    log_path="",  # filled in per test with tmp_path
-    format="default",
-    central_endpoint="https://collector.example.com/api/errors",
+CONFIG = WatcherConfig(
+    registry_url="http://dashboard/api/servers",
+    analyzer_endpoint="https://collector.example.com/api/errors",
     api_key_env="WATCHER_API_KEY",
+    registry_poll_interval=30,
+    log_poll_interval=15,
+)
+
+ENTRY_A = ServerEntry(
+    server_id="server-a",
+    host="10.0.1.10",
+    port=22,
+    username="deploy",
+    ssh_key_path="/home/watcher/.ssh/server-a.pem",
+    log_path="/var/log/app/application.log",
+    format="default",
+)
+
+ENTRY_B = ServerEntry(
+    server_id="server-b",
+    host="10.0.1.11",
+    port=22,
+    username="deploy",
+    ssh_key_path="/home/watcher/.ssh/server-b.pem",
+    log_path="/var/log/app/application.log",
+    format="default",
 )
 
 
-def _make_handler(log_path):
-    config = ServerConfig(**{**CONFIG.__dict__, "log_path": log_path})
-    parser = LogParser(config)
-    accumulator = ErrorEventAccumulator(parser)
+def test_sync_registry_adds_new_servers():
     sender = MagicMock()
-    handler = LogFileHandler(log_path, accumulator, sender)
-    return handler, sender
+    manager = WatcherManager(CONFIG, sender)
+
+    with patch("watcher.main.fetch_servers", return_value=([ENTRY_A], [])):
+        manager.sync_registry()
+
+    assert "server-a" in manager._active
 
 
-class FakeEvent:
-    def __init__(self, src_path):
-        self.src_path = src_path
+def test_sync_registry_removes_deregistered_servers():
+    sender = MagicMock()
+    manager = WatcherManager(CONFIG, sender)
+
+    with patch("watcher.main.fetch_servers", return_value=([ENTRY_A, ENTRY_B], [])):
+        manager.sync_registry()
+    assert set(manager._active.keys()) == {"server-a", "server-b"}
+
+    with patch("watcher.main.fetch_servers", return_value=([ENTRY_A], [])):
+        manager.sync_registry()
+
+    assert set(manager._active.keys()) == {"server-a"}
 
 
-def test_read_new_lines_sends_completed_error_event(tmp_path):
-    log_path = str(tmp_path / "application.log")
-    with open(log_path, "w", encoding="utf-8") as f:
-        f.write("2026-08-05 12:34:56.789  INFO 12345 --- [main] com.example.demo.App : Starting App\n")
+def test_sync_registry_keeps_existing_tailer_for_still_registered_server():
+    sender = MagicMock()
+    manager = WatcherManager(CONFIG, sender)
 
-    handler, sender = _make_handler(log_path)
+    with patch("watcher.main.fetch_servers", return_value=([ENTRY_A], [])):
+        manager.sync_registry()
+    tailer_before, _ = manager._active["server-a"]
 
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(
-            '2026-08-05 12:35:01.123 ERROR 12345 --- [nio-8080-exec-1] com.example.demo.MyService : boom\n'
+    with patch("watcher.main.fetch_servers", return_value=([ENTRY_A], [])):
+        manager.sync_registry()
+    tailer_after, _ = manager._active["server-a"]
+
+    assert tailer_before is tailer_after
+
+
+def test_sync_registry_unreachable_keeps_last_known_list():
+    sender = MagicMock()
+    manager = WatcherManager(CONFIG, sender)
+
+    with patch("watcher.main.fetch_servers", return_value=([ENTRY_A], [])):
+        manager.sync_registry()
+
+    with patch("watcher.main.fetch_servers", side_effect=Exception("registry down")):
+        manager.sync_registry()
+
+    assert "server-a" in manager._active
+
+
+def test_poll_once_feeds_lines_and_sends_completed_events():
+    sender = MagicMock()
+    manager = WatcherManager(CONFIG, sender)
+
+    with patch("watcher.main.fetch_servers", return_value=([ENTRY_A], [])):
+        manager.sync_registry()
+
+    tailer, _accumulator = manager._active["server-a"]
+    tailer.read_new_bytes = MagicMock(
+        return_value=(
+            "2026-08-06 12:35:01.123 ERROR 12345 --- [main] com.example.demo.MyService : boom\n"
+            "java.lang.RuntimeException: boom\n"
+            "2026-08-06 12:35:05.001  INFO 12345 --- [main] com.example.demo.App : Recovered"
         )
-        f.write("java.lang.RuntimeException: boom\n")
-        f.write(
-            "2026-08-05 12:35:05.001  INFO 12345 --- [nio-8080-exec-2] com.example.demo.App : Recovered\n"
-        )
-
-    handler.on_modified(FakeEvent(log_path))
-
-    sender.send.assert_called_once()
-    sent_event = sender.send.call_args[0][0]
-    assert sent_event.error_type == "java.lang.RuntimeException"
-
-
-def test_ignores_events_for_other_files(tmp_path):
-    log_path = str(tmp_path / "application.log")
-    other_path = str(tmp_path / "other.log")
-    open(log_path, "w").close()
-
-    handler, sender = _make_handler(log_path)
-    handler.on_modified(FakeEvent(other_path))
-
-    sender.send.assert_not_called()
-
-
-def test_partial_line_write_is_not_corrupted_or_lost(tmp_path):
-    log_path = str(tmp_path / "application.log")
-    with open(log_path, "w", encoding="utf-8") as f:
-        f.write("2026-08-05 12:34:56.789  INFO 12345 --- [main] com.example.demo.App : Starting App\n")
-
-    handler, sender = _make_handler(log_path)
-
-    error_line = (
-        '2026-08-05 12:35:01.123 ERROR 12345 --- [nio-8080-exec-1] '
-        'com.example.demo.MyService : boom\n'
     )
-    # Split the exception class name mid-word, with no trailing newline yet,
-    # simulating a watchdog on_modified firing while the writer is mid-line.
-    exception_line_first_part = "java.lang.RuntimeExcep"
-    exception_line_second_part = "tion: boom\n"
 
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(error_line)
-        f.write(exception_line_first_part)
-
-    handler.on_modified(FakeEvent(log_path))
-
-    # The ERROR line itself is complete, but the exception line is still
-    # mid-write, so no event should have completed yet.
-    sender.send.assert_not_called()
-
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(exception_line_second_part)
-        f.write(
-            "2026-08-05 12:35:05.001  INFO 12345 --- [nio-8080-exec-2] com.example.demo.App : Recovered\n"
-        )
-
-    handler.on_modified(FakeEvent(log_path))
+    manager.poll_once()
 
     sender.send.assert_called_once()
     sent_event = sender.send.call_args[0][0]
     assert sent_event.error_type == "java.lang.RuntimeException"
-    assert sent_event.stack_trace == "java.lang.RuntimeException: boom"
 
 
-def test_rotation_resets_read_position(tmp_path):
-    log_path = str(tmp_path / "application.log")
-    with open(log_path, "w", encoding="utf-8") as f:
-        f.write("2026-08-05 12:34:56.789  INFO 12345 --- [main] com.example.demo.App : line one\n")
+def test_poll_once_skips_server_with_no_new_bytes():
+    sender = MagicMock()
+    manager = WatcherManager(CONFIG, sender)
 
-    handler, sender = _make_handler(log_path)
-    handler.on_modified(FakeEvent(log_path))
+    with patch("watcher.main.fetch_servers", return_value=([ENTRY_A], [])):
+        manager.sync_registry()
 
-    os.remove(log_path)
-    with open(log_path, "w", encoding="utf-8") as f:
-        f.write(
-            '2026-08-05 12:36:00.000 ERROR 12345 --- [main] com.example.demo.App : after rotation\n'
-        )
-        f.write("java.lang.IllegalStateException: after rotation\n")
-        f.write("2026-08-05 12:36:05.000  INFO 12345 --- [main] com.example.demo.App : done\n")
+    tailer, _accumulator = manager._active["server-a"]
+    tailer.read_new_bytes = MagicMock(return_value="")
 
-    handler.on_created(FakeEvent(log_path))
+    manager.poll_once()
 
-    sender.send.assert_called_once()
-    sent_event = sender.send.call_args[0][0]
-    assert sent_event.error_type == "java.lang.IllegalStateException"
+    sender.send.assert_not_called()
