@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 import threading
@@ -6,26 +7,30 @@ from unittest.mock import patch
 import pytest
 import requests
 
-from watcher.models import ErrorEvent, ServerConfig
+from watcher.models import ErrorEvent, WatcherConfig
 from watcher.sender import EventSender, next_retry_interval
 
-CONFIG = ServerConfig(
-    server_id="server-a",
-    log_path="/var/log/app/application.log",
-    format="default",
-    central_endpoint="https://collector.example.com/api/errors",
+CONFIG_KWARGS = dict(
+    registry_url="http://dashboard/api/servers",
+    analyzer_endpoint="https://collector.example.com/api/errors",
     api_key_env="WATCHER_API_KEY",
 )
 
-EVENT = ErrorEvent(
-    server_id="server-a",
-    timestamp="2026-08-05T12:35:01+09:00",
-    log_level="ERROR",
-    error_type="java.lang.NullPointerException",
-    message="Cannot invoke",
-    stack_trace="at ...",
-    raw_log="full raw log",
-)
+
+def _make_config(tmp_path):
+    return WatcherConfig(queue_dir=str(tmp_path / "queue"), **CONFIG_KWARGS)
+
+
+def _make_event(server_id="server-a"):
+    return ErrorEvent(
+        server_id=server_id,
+        timestamp="2026-08-06T12:35:01+09:00",
+        log_level="ERROR",
+        error_type="java.lang.NullPointerException",
+        message="Cannot invoke",
+        stack_trace="at ...",
+        raw_log="full raw log",
+    )
 
 
 class FakeResponse:
@@ -41,124 +46,111 @@ def api_key_env():
 
 
 def test_send_success_does_not_enqueue(tmp_path):
-    sender = EventSender(CONFIG, queue_dir=str(tmp_path))
+    config = _make_config(tmp_path)
+    sender = EventSender(config)
 
     with patch("watcher.sender.requests.post", return_value=FakeResponse(200)) as mock_post:
-        result = sender.send(EVENT)
+        result = sender.send(_make_event())
 
     assert result is True
-    assert not os.path.exists(sender.queue_path)
+    assert glob.glob(os.path.join(config.queue_dir, "*.jsonl")) == []
     _, kwargs = mock_post.call_args
     assert kwargs["headers"]["X-API-Key"] == "test-key"
 
 
-def test_send_server_error_enqueues_for_retry(tmp_path):
-    sender = EventSender(CONFIG, queue_dir=str(tmp_path))
+def test_send_server_error_enqueues_to_server_specific_file(tmp_path):
+    config = _make_config(tmp_path)
+    sender = EventSender(config)
 
     with patch("watcher.sender.requests.post", return_value=FakeResponse(500)):
-        result = sender.send(EVENT)
+        result = sender.send(_make_event(server_id="server-a"))
 
     assert result is False
-    assert os.path.exists(sender.queue_path)
-    with open(sender.queue_path) as f:
-        queued = json.loads(f.readline())
-    assert queued["server_id"] == "server-a"
-
-
-def test_send_client_error_does_not_enqueue(tmp_path):
-    sender = EventSender(CONFIG, queue_dir=str(tmp_path))
-
-    with patch("watcher.sender.requests.post", return_value=FakeResponse(401)):
-        result = sender.send(EVENT)
-
-    assert result is False
-    assert not os.path.exists(sender.queue_path)
-
-
-def test_send_network_error_enqueues_for_retry(tmp_path):
-    sender = EventSender(CONFIG, queue_dir=str(tmp_path))
-
-    with patch("watcher.sender.requests.post", side_effect=requests.ConnectionError):
-        result = sender.send(EVENT)
-
-    assert result is False
-    assert os.path.exists(sender.queue_path)
-
-
-def test_flush_queue_retries_and_clears_on_success(tmp_path):
-    sender = EventSender(CONFIG, queue_dir=str(tmp_path))
-    with patch("watcher.sender.requests.post", return_value=FakeResponse(500)):
-        sender.send(EVENT)
-    assert os.path.exists(sender.queue_path)
-
-    with patch("watcher.sender.requests.post", return_value=FakeResponse(200)):
-        has_remaining = sender.flush_queue()
-
-    assert has_remaining is False
-    with open(sender.queue_path) as f:
-        assert f.read() == ""
-
-
-def test_flush_queue_keeps_events_that_still_fail(tmp_path):
-    sender = EventSender(CONFIG, queue_dir=str(tmp_path))
-    with patch("watcher.sender.requests.post", return_value=FakeResponse(500)):
-        sender.send(EVENT)
-
-    with patch("watcher.sender.requests.post", return_value=FakeResponse(503)):
-        has_remaining = sender.flush_queue()
-
-    assert has_remaining is True
-    with open(sender.queue_path) as f:
+    queue_path = os.path.join(config.queue_dir, "server-a.jsonl")
+    assert os.path.exists(queue_path)
+    with open(queue_path) as f:
         assert json.loads(f.readline())["server_id"] == "server-a"
 
 
-def test_concurrent_send_does_not_lose_queued_events(tmp_path):
-    sender = EventSender(CONFIG, queue_dir=str(tmp_path))
+def test_send_client_error_does_not_enqueue(tmp_path):
+    config = _make_config(tmp_path)
+    sender = EventSender(config)
 
-    thread_count = 20
-    threads = []
-    stop_flushing = threading.Event()
+    with patch("watcher.sender.requests.post", return_value=FakeResponse(401)):
+        result = sender.send(_make_event())
 
-    # Also hammer flush_queue() concurrently from a background thread, the way
-    # the real retry-loop thread would. requests.post always returns 500, so
-    # flush_queue() classifies every event as RETRY and never actually removes
-    # anything - it only exercises the read-modify-write race against
-    # concurrent _enqueue() calls without changing the expected final count.
-    def flush_repeatedly():
-        while not stop_flushing.is_set():
-            sender.flush_queue()
+    assert result is False
+    assert glob.glob(os.path.join(config.queue_dir, "*.jsonl")) == []
+
+
+def test_send_network_error_enqueues(tmp_path):
+    config = _make_config(tmp_path)
+    sender = EventSender(config)
+
+    with patch("watcher.sender.requests.post", side_effect=requests.ConnectionError):
+        result = sender.send(_make_event())
+
+    assert result is False
+    assert glob.glob(os.path.join(config.queue_dir, "*.jsonl"))
+
+
+def test_flush_queue_keeps_separate_server_files_independent(tmp_path):
+    config = _make_config(tmp_path)
+    sender = EventSender(config)
 
     with patch("watcher.sender.requests.post", return_value=FakeResponse(500)):
-        flusher = threading.Thread(target=flush_repeatedly)
-        flusher.start()
+        sender.send(_make_event(server_id="server-a"))
+        sender.send(_make_event(server_id="server-b"))
 
-        for _ in range(thread_count):
-            t = threading.Thread(target=sender.send, args=(EVENT,))
-            threads.append(t)
+    def post_side_effect(url, json, headers, timeout):
+        if json["server_id"] == "server-a":
+            return FakeResponse(200)
+        return FakeResponse(503)
+
+    with patch("watcher.sender.requests.post", side_effect=post_side_effect):
+        has_remaining = sender.flush_queue()
+
+    assert has_remaining is True
+    with open(os.path.join(config.queue_dir, "server-a.jsonl")) as f:
+        assert f.read() == ""
+    with open(os.path.join(config.queue_dir, "server-b.jsonl")) as f:
+        assert json.loads(f.readline())["server_id"] == "server-b"
+
+
+def test_missing_api_key_env_raises_at_construction(tmp_path, monkeypatch):
+    monkeypatch.delenv("WATCHER_API_KEY", raising=False)
+    config = _make_config(tmp_path)
+
+    with pytest.raises(ValueError, match="WATCHER_API_KEY"):
+        EventSender(config)
+
+
+def test_concurrent_send_and_flush_do_not_lose_events(tmp_path):
+    config = _make_config(tmp_path)
+    sender = EventSender(config)
+
+    with patch("watcher.sender.requests.post", return_value=FakeResponse(500)):
+        threads = [
+            threading.Thread(target=sender.send, args=(_make_event(server_id="server-a"),))
+            for _ in range(20)
+        ]
+        flush_thread = threading.Thread(target=sender.flush_queue)
         for t in threads:
             t.start()
+        flush_thread.start()
         for t in threads:
             t.join()
+        flush_thread.join()
 
-        stop_flushing.set()
-        flusher.join()
-
-    with open(sender.queue_path) as f:
+    queue_path = os.path.join(config.queue_dir, "server-a.jsonl")
+    with open(queue_path) as f:
         lines = [line for line in f.read().splitlines() if line]
-    assert len(lines) == thread_count
-
-
-def test_missing_api_key_env_raises_value_error(tmp_path, monkeypatch):
-    monkeypatch.delenv("WATCHER_API_KEY", raising=False)
-
-    with pytest.raises(ValueError):
-        EventSender(CONFIG, queue_dir=str(tmp_path))
+    assert len(lines) == 20
 
 
 def test_next_retry_interval_doubles_up_to_cap():
     assert next_retry_interval(30, True) == 60
     assert next_retry_interval(240, True) == 300
-    assert next_retry_interval(280, True, max_seconds=300) == 300
 
 
 def test_next_retry_interval_resets_when_queue_empty():

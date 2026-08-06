@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 import threading
@@ -20,28 +21,31 @@ def next_retry_interval(current_interval, queue_still_has_events, base_seconds=3
 
 
 class EventSender:
-    def __init__(self, config, queue_dir="watcher/.queue"):
+    def __init__(self, config):
         self.config = config
+        os.makedirs(config.queue_dir, exist_ok=True)
+        self._queue_lock = threading.Lock()
         if not os.environ.get(config.api_key_env):
             raise ValueError(
                 f"Environment variable {config.api_key_env!r} is not set (required for API key)"
             )
-        os.makedirs(queue_dir, exist_ok=True)
-        self.queue_path = os.path.join(queue_dir, f"{config.server_id}.jsonl")
-        self._queue_lock = threading.Lock()
 
     def send(self, event):
         result = self._post_event(event.to_dict())
         if result == DeliveryResult.RETRY:
-            self._enqueue(event.to_dict())
+            self._enqueue(event.server_id, event.to_dict())
         return result == DeliveryResult.DELIVERED
 
     def flush_queue(self):
-        with self._queue_lock:
-            if not os.path.exists(self.queue_path):
-                return False
+        has_remaining = False
+        for queue_path in sorted(glob.glob(os.path.join(self.config.queue_dir, "*.jsonl"))):
+            if self._flush_one_queue_file(queue_path):
+                has_remaining = True
+        return has_remaining
 
-            with open(self.queue_path, "r", encoding="utf-8") as f:
+    def _flush_one_queue_file(self, queue_path):
+        with self._queue_lock:
+            with open(queue_path, "r", encoding="utf-8") as f:
                 lines = [line for line in f.read().splitlines() if line]
 
             remaining = []
@@ -50,7 +54,7 @@ class EventSender:
                 if self._post_event(event_dict) == DeliveryResult.RETRY:
                     remaining.append(line)
 
-            with open(self.queue_path, "w", encoding="utf-8") as f:
+            with open(queue_path, "w", encoding="utf-8") as f:
                 for line in remaining:
                     f.write(line + "\n")
 
@@ -68,7 +72,7 @@ class EventSender:
     def _post_event(self, event_dict):
         try:
             response = requests.post(
-                self.config.central_endpoint,
+                self.config.analyzer_endpoint,
                 json=event_dict,
                 headers={"X-API-Key": self._api_key()},
                 timeout=5,
@@ -85,7 +89,8 @@ class EventSender:
     def _api_key(self):
         return os.environ.get(self.config.api_key_env, "")
 
-    def _enqueue(self, event_dict):
+    def _enqueue(self, server_id, event_dict):
+        queue_path = os.path.join(self.config.queue_dir, f"{server_id}.jsonl")
         with self._queue_lock:
-            with open(self.queue_path, "a", encoding="utf-8") as f:
+            with open(queue_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(event_dict) + "\n")
