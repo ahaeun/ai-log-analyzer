@@ -68,3 +68,23 @@ def test_errors_page_filters_by_server_id(app, logged_in_client):
 
     assert "Type-B" in response.text
     assert "Type-A" not in response.text
+
+
+def test_errors_page_paginates_results(app, logged_in_client):
+    config = app.state.config
+    for i in range(60):
+        db.insert_error(
+            config.db_path, "server-a",
+            f"2026-08-06T{i:02d}:00:00+09:00", "ERROR", f"Type-{i}", "m", "s", "r",
+        )
+
+    page1 = logged_in_client.get("/errors")
+    assert page1.status_code == 200
+    assert ">다음</a>" in page1.text
+
+    page2 = logged_in_client.get("/errors", params={"page": 2})
+    assert page2.status_code == 200
+    assert ">다음</a>" not in page2.text
+    # page 2 should show the 10 oldest remaining rows (Type-0 .. Type-9)
+    assert "Type-0" in page2.text
+    assert "Type-59" not in page2.text

@@ -1,3 +1,5 @@
+import sqlite3
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 
@@ -38,7 +40,18 @@ def add_server(
             {"user": user, "servers": db.list_servers(config.db_path), "error": str(e)},
         )
 
-    db.insert_server(config.db_path, server_id, host, port, username, ssh_key_path, log_path, format, pattern)
+    try:
+        db.insert_server(config.db_path, server_id, host, port, username, ssh_key_path, log_path, format, pattern)
+    except sqlite3.IntegrityError:
+        return templates.TemplateResponse(
+            request,
+            "servers.html",
+            {
+                "user": user,
+                "servers": db.list_servers(config.db_path),
+                "error": f"server_id '{server_id}'는 이미 존재합니다",
+            },
+        )
     return RedirectResponse("/servers", status_code=303)
 
 
@@ -46,6 +59,8 @@ def add_server(
 def edit_server_page(request: Request, server_id: str, user: dict = Depends(require_session)):
     config = request.app.state.config
     server = db.get_server(config.db_path, server_id)
+    if server is None:
+        return RedirectResponse("/servers", status_code=303)
     return templates.TemplateResponse(
         request, "server_edit.html", {"user": user, "server": server, "error": None}
     )
@@ -60,6 +75,9 @@ def edit_server(
     user: dict = Depends(require_session),
 ):
     config = request.app.state.config
+    if db.get_server(config.db_path, server_id) is None:
+        return RedirectResponse("/servers", status_code=303)
+
     pattern = custom_pattern or None
     try:
         validate_server_fields(server_id, host, port, username, ssh_key_path, log_path, format, pattern)

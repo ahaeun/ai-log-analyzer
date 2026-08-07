@@ -3,8 +3,8 @@ import requests
 from watcher.models import ServerEntry
 
 
-def fetch_servers(registry_url):
-    response = requests.get(registry_url, timeout=5)
+def fetch_servers(registry_url, api_key):
+    response = requests.get(registry_url, headers={"X-API-Key": api_key}, timeout=5)
     response.raise_for_status()
     data = response.json()
 

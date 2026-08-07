@@ -31,7 +31,7 @@ class FakeResponse:
 
 def test_fetch_servers_returns_valid_entries():
     with patch("watcher.registry_client.requests.get", return_value=FakeResponse([VALID_ENTRY])):
-        servers, skipped = fetch_servers("http://dashboard/api/servers")
+        servers, skipped = fetch_servers("http://dashboard/api/servers", "test-key")
 
     assert len(servers) == 1
     assert servers[0].server_id == "server-a"
@@ -44,7 +44,7 @@ def test_fetch_servers_skips_invalid_entry_but_keeps_valid_ones():
         "watcher.registry_client.requests.get",
         return_value=FakeResponse([VALID_ENTRY, invalid_entry]),
     ):
-        servers, skipped = fetch_servers("http://dashboard/api/servers")
+        servers, skipped = fetch_servers("http://dashboard/api/servers", "test-key")
 
     assert len(servers) == 1
     assert servers[0].server_id == "server-a"
@@ -59,7 +59,7 @@ def test_fetch_servers_skips_entry_missing_required_field():
         "watcher.registry_client.requests.get",
         return_value=FakeResponse([missing_field_entry]),
     ):
-        servers, skipped = fetch_servers("http://dashboard/api/servers")
+        servers, skipped = fetch_servers("http://dashboard/api/servers", "test-key")
 
     assert servers == []
     assert skipped[0][0] == "server-c"
@@ -68,7 +68,7 @@ def test_fetch_servers_skips_entry_missing_required_field():
 def test_fetch_servers_propagates_registry_unreachable():
     with patch("watcher.registry_client.requests.get", side_effect=requests.ConnectionError):
         with pytest.raises(requests.ConnectionError):
-            fetch_servers("http://dashboard/api/servers")
+            fetch_servers("http://dashboard/api/servers", "test-key")
 
 
 def test_fetch_servers_skips_entry_with_invalid_custom_pattern_regex():
@@ -82,7 +82,7 @@ def test_fetch_servers_skips_entry_with_invalid_custom_pattern_regex():
         "watcher.registry_client.requests.get",
         return_value=FakeResponse([VALID_ENTRY, invalid_regex_entry]),
     ):
-        servers, skipped = fetch_servers("http://dashboard/api/servers")
+        servers, skipped = fetch_servers("http://dashboard/api/servers", "test-key")
 
     assert len(servers) == 1
     assert servers[0].server_id == "server-a"
@@ -101,7 +101,7 @@ def test_fetch_servers_skips_entry_missing_required_named_group():
         "watcher.registry_client.requests.get",
         return_value=FakeResponse([VALID_ENTRY, missing_group_entry]),
     ):
-        servers, skipped = fetch_servers("http://dashboard/api/servers")
+        servers, skipped = fetch_servers("http://dashboard/api/servers", "test-key")
 
     assert len(servers) == 1
     assert servers[0].server_id == "server-a"
@@ -114,7 +114,7 @@ def test_fetch_servers_skips_non_dict_entry():
         "watcher.registry_client.requests.get",
         return_value=FakeResponse([VALID_ENTRY, "not-a-dict"]),
     ):
-        servers, skipped = fetch_servers("http://dashboard/api/servers")
+        servers, skipped = fetch_servers("http://dashboard/api/servers", "test-key")
 
     assert len(servers) == 1
     assert servers[0].server_id == "server-a"
@@ -128,4 +128,14 @@ def test_fetch_servers_raises_when_response_body_is_not_a_list():
         return_value=FakeResponse({"error": "not a list"}),
     ):
         with pytest.raises(ValueError, match="not a JSON array"):
-            fetch_servers("http://dashboard/api/servers")
+            fetch_servers("http://dashboard/api/servers", "test-key")
+
+
+def test_fetch_servers_sends_api_key_header():
+    with patch(
+        "watcher.registry_client.requests.get", return_value=FakeResponse([VALID_ENTRY])
+    ) as mock_get:
+        fetch_servers("http://dashboard/api/servers", "test-key")
+
+    _, kwargs = mock_get.call_args
+    assert kwargs["headers"] == {"X-API-Key": "test-key"}

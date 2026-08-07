@@ -14,6 +14,7 @@ CONFIG_KWARGS = dict(
     registry_url="http://dashboard/api/servers",
     analyzer_endpoint="https://collector.example.com/api/errors",
     api_key_env="WATCHER_API_KEY",
+    registry_api_key_env="WATCHER_REGISTRY_API_KEY",
 )
 
 

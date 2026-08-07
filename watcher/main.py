@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 import threading
 import time
 
@@ -21,7 +22,8 @@ class WatcherManager:
 
     def sync_registry(self):
         try:
-            servers, skipped = fetch_servers(self.config.registry_url)
+            api_key = os.environ.get(self.config.registry_api_key_env, "")
+            servers, skipped = fetch_servers(self.config.registry_url, api_key)
         except Exception as e:
             logger.warning("registry fetch failed, keeping last known server list: %s", e)
             return

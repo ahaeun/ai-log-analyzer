@@ -11,7 +11,9 @@ dashboard는 이 스키마로 응답하는 GET 엔드포인트를 구현해야 �
 ## API
 
 ```
-GET {registry_url} → 200 OK
+GET {registry_url}
+Header: X-API-Key: <registry_api_key_env가 가리키는 환경변수 값>
+→ 200 OK
 Content-Type: application/json
 
 [

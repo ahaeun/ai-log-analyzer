@@ -7,6 +7,7 @@ CONFIG = WatcherConfig(
     registry_url="http://dashboard/api/servers",
     analyzer_endpoint="https://collector.example.com/api/errors",
     api_key_env="WATCHER_API_KEY",
+    registry_api_key_env="WATCHER_REGISTRY_API_KEY",
     registry_poll_interval=30,
     log_poll_interval=15,
 )
@@ -40,6 +41,17 @@ def test_sync_registry_adds_new_servers():
         manager.sync_registry()
 
     assert "server-a" in manager._active
+
+
+def test_sync_registry_passes_registry_api_key_from_env(monkeypatch):
+    monkeypatch.setenv("WATCHER_REGISTRY_API_KEY", "secret-registry-key")
+    sender = MagicMock()
+    manager = WatcherManager(CONFIG, sender)
+
+    with patch("watcher.main.fetch_servers", return_value=([ENTRY_A], [])) as mock_fetch:
+        manager.sync_registry()
+
+    mock_fetch.assert_called_once_with(CONFIG.registry_url, "secret-registry-key")
 
 
 def test_sync_registry_removes_deregistered_servers():

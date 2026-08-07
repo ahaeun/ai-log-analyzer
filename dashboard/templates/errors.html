@@ -32,5 +32,17 @@
       {% endfor %}
     </tbody>
   </table>
+  <div class="flex justify-between items-center mt-4 text-sm">
+    {% if has_prev %}
+    <a href="/errors?server_id={{ filters.server_id or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}&error_type={{ filters.error_type or '' }}&page={{ page - 1 }}" class="text-blue-600">이전</a>
+    {% else %}
+    <span class="text-gray-300">이전</span>
+    {% endif %}
+    {% if has_next %}
+    <a href="/errors?server_id={{ filters.server_id or '' }}&date_from={{ filters.date_from or '' }}&date_to={{ filters.date_to or '' }}&error_type={{ filters.error_type or '' }}&page={{ page + 1 }}" class="text-blue-600">다음</a>
+    {% else %}
+    <span class="text-gray-300">다음</span>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

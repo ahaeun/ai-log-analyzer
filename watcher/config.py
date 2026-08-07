@@ -2,7 +2,7 @@ import yaml
 
 from watcher.models import WatcherConfig
 
-REQUIRED_FIELDS = ("registry_url", "analyzer_endpoint", "api_key_env")
+REQUIRED_FIELDS = ("registry_url", "analyzer_endpoint", "api_key_env", "registry_api_key_env")
 OPTIONAL_FIELDS = ("queue_dir", "registry_poll_interval", "log_poll_interval")
 
 

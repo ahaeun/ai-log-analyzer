@@ -40,6 +40,8 @@ def exchange_code_for_token(config, code, redirect_uri):
     )
     response.raise_for_status()
     data = response.json()
+    if not data.get("ok", True):
+        raise RuntimeError(f"Slack API error: {data.get('error')}")
     return data["access_token"]
 
 
@@ -51,6 +53,8 @@ def fetch_userinfo(access_token):
     )
     response.raise_for_status()
     data = response.json()
+    if not data.get("ok", True):
+        raise RuntimeError(f"Slack API error: {data.get('error')}")
     return {
         "email": data.get("email"),
         "team_id": data.get("https://slack.com/team_id"),

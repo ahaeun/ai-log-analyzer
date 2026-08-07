@@ -39,6 +39,7 @@ class WatcherConfig:
     registry_url: str
     analyzer_endpoint: str
     api_key_env: str
+    registry_api_key_env: str
     queue_dir: str = "watcher/.queue"
     registry_poll_interval: int = 30
     log_poll_interval: int = 15

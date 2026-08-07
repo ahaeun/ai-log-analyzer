@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -78,6 +80,54 @@ def test_add_server_with_invalid_custom_pattern_shows_error(app, logged_in_clien
     assert response.status_code == 200
     assert "invalid custom_pattern regex" in response.text
     assert db.get_server(app.state.config.db_path, "server-a") is None
+
+
+def test_add_server_with_duplicate_server_id_shows_error(app, logged_in_client):
+    config = app.state.config
+    db.insert_server(config.db_path, "server-a", "10.0.1.10", 22, "deploy", "/k.pem", "/var/log/a.log", "default", None)
+
+    response = logged_in_client.post(
+        "/servers",
+        data={
+            "server_id": "server-a", "host": "10.0.1.99", "port": "2222",
+            "username": "ops", "ssh_key_path": "/other.pem",
+            "log_path": "/var/log/other.log", "format": "default", "custom_pattern": "",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "이미 존재합니다" in response.text
+
+    server = db.get_server(config.db_path, "server-a")
+    assert server["host"] == "10.0.1.10"
+    assert server["port"] == 22
+    assert server["username"] == "deploy"
+
+
+def test_edit_nonexistent_server_page_redirects(logged_in_client):
+    response = logged_in_client.get("/servers/does-not-exist/edit")
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/servers"
+
+
+def test_edit_nonexistent_server_post_redirects_without_writing(app, logged_in_client):
+    config = app.state.config
+
+    with patch("dashboard.routes.servers_routes.db.update_server") as mock_update:
+        response = logged_in_client.post(
+            "/servers/does-not-exist/edit",
+            data={
+                "host": "10.0.1.99", "port": "2222", "username": "ops",
+                "ssh_key_path": "/new.pem", "log_path": "/var/log/new.log",
+                "format": "default", "custom_pattern": "",
+            },
+        )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/servers"
+    assert db.get_server(config.db_path, "does-not-exist") is None
+    mock_update.assert_not_called()
 
 
 def test_edit_server_updates_record(app, logged_in_client):
