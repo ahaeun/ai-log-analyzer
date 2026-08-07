@@ -19,11 +19,17 @@ def store_error(config, event, ai_analysis, notified, notified_at):
         "notified_at": notified_at,
     }
     try:
-        requests.post(
+        response = requests.post(
             f"{config.dashboard_url}/api/errors",
             json=payload,
             headers={"X-API-Key": config.dashboard_api_key},
             timeout=5,
         )
+        if response.status_code >= 300:
+            logger.warning(
+                "dashboard rejected error event (status %s): %s",
+                response.status_code,
+                response.text,
+            )
     except requests.RequestException as e:
         logger.warning("failed to store error in dashboard: %s", e)

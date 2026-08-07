@@ -21,6 +21,7 @@ EVENT = ErrorEvent(
 
 def test_store_error_posts_full_payload_with_api_key_header():
     with patch("analyzer.dashboard_client.requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
         store_error(CONFIG, EVENT, "원인: ...", True, "2026-08-06T10:00:05+09:00")
 
     args, kwargs = mock_post.call_args
@@ -36,3 +37,17 @@ def test_store_error_posts_full_payload_with_api_key_header():
 def test_store_error_does_not_raise_on_network_failure():
     with patch("analyzer.dashboard_client.requests.post", side_effect=requests.ConnectionError):
         store_error(CONFIG, EVENT, None, False, None)
+
+
+def test_store_error_logs_warning_on_non_2xx_response():
+    mock_response = patch("analyzer.dashboard_client.requests.post")
+    with mock_response as mock_post:
+        mock_post.return_value.status_code = 401
+        mock_post.return_value.text = "invalid API key"
+        with patch("analyzer.dashboard_client.logger.warning") as mock_logger:
+            store_error(CONFIG, EVENT, "원인: ...", True, "2026-08-06T10:00:05+09:00")
+            mock_logger.assert_called_once()
+            call_args = mock_logger.call_args[0]
+            assert "dashboard rejected error event" in call_args[0]
+            assert call_args[1] == 401
+            assert call_args[2] == "invalid API key"
