@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 class WatcherManager:
     def __init__(self, config, sender):
         self.config = config
+        if not os.environ.get(config.registry_api_key_env):
+            raise ValueError(
+                f"Environment variable {config.registry_api_key_env!r} is not set "
+                "(required for registry API key)"
+            )
         self.sender = sender
         self._active = {}
         self._lock = threading.Lock()

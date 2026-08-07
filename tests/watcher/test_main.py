@@ -1,4 +1,7 @@
+import os
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from watcher.main import WatcherManager
 from watcher.models import ServerEntry, WatcherConfig
@@ -31,6 +34,21 @@ ENTRY_B = ServerEntry(
     log_path="/var/log/app/application.log",
     format="default",
 )
+
+
+@pytest.fixture(autouse=True)
+def registry_api_key_env():
+    os.environ["WATCHER_REGISTRY_API_KEY"] = "test-registry-key"
+    yield
+    del os.environ["WATCHER_REGISTRY_API_KEY"]
+
+
+def test_missing_registry_api_key_env_raises_at_construction(monkeypatch):
+    monkeypatch.delenv("WATCHER_REGISTRY_API_KEY", raising=False)
+    sender = MagicMock()
+
+    with pytest.raises(ValueError, match="WATCHER_REGISTRY_API_KEY"):
+        WatcherManager(CONFIG, sender)
 
 
 def test_sync_registry_adds_new_servers():

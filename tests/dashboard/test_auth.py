@@ -55,11 +55,15 @@ def test_exchange_code_for_token_returns_access_token():
 
 def test_exchange_code_for_token_raises_on_slack_ok_false():
     fake_response = MagicMock()
-    fake_response.json.return_value = {"ok": False, "error": "invalid_code"}
+    fake_response.json.return_value = {
+        "ok": False,
+        "error": "invalid_code",
+        "access_token": "should-not-be-used",
+    }
     fake_response.raise_for_status.return_value = None
 
     with patch("dashboard.auth.requests.post", return_value=fake_response):
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             exchange_code_for_token(CONFIG, "code-1", "https://dash.example.com/auth/slack/callback")
 
 
