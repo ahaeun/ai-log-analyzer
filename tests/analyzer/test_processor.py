@@ -47,6 +47,29 @@ def test_process_error_skips_slack_but_still_stores_when_duplicate():
     assert args[4] is None
 
 
+def test_process_error_never_raises_and_logs_when_a_collaborator_fails():
+    # A collaborator failing partway through (here: slack_client, which runs
+    # before dashboard_client.store_error in the non-duplicate branch) must
+    # not propagate out of process_error -- the BackgroundTasks callback has
+    # no way to report a raised exception back to watcher, so the event
+    # would otherwise vanish silently. dashboard_client.store_error is not
+    # expected to run in this scenario since the exception happens before
+    # that point in the non-duplicate branch; the guarantee under test is
+    # only that process_error itself never raises, and that the failure is
+    # logged.
+    with patch("analyzer.processor.dedup.is_duplicate", return_value=False), \
+         patch("analyzer.processor.openai_client.analyze_error", return_value="분석결과"), \
+         patch(
+             "analyzer.processor.slack_client.send_notification",
+             side_effect=RuntimeError("boom"),
+         ), \
+         patch("analyzer.processor.dashboard_client.store_error") as mock_store, \
+         patch("analyzer.processor.logger.exception") as mock_log_exception:
+        process_error(EVENT, CONFIG)  # must not raise
+
+    mock_log_exception.assert_called_once()
+
+
 def test_process_error_continues_when_openai_analysis_fails():
     with patch("analyzer.processor.dedup.is_duplicate", return_value=False), \
          patch("analyzer.processor.openai_client.analyze_error", return_value=None), \

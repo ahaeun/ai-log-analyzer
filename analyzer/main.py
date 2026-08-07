@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel
 
@@ -17,7 +19,7 @@ class ErrorIn(BaseModel):
     raw_log: str
 
 
-def _check_api_key(request: Request, x_api_key: str = Header(default=None)):
+def _check_api_key(request: Request, x_api_key: Optional[str] = Header(default=None)):
     config = request.app.state.config
     if not x_api_key or x_api_key != config.api_key:
         raise HTTPException(status_code=401, detail="invalid or missing X-API-Key")

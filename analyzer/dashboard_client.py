@@ -20,7 +20,7 @@ def store_error(config, event, ai_analysis, notified, notified_at):
     }
     try:
         response = requests.post(
-            f"{config.dashboard_url}/api/errors",
+            f"{config.dashboard_url.rstrip('/')}/api/errors",
             json=payload,
             headers={"X-API-Key": config.dashboard_api_key},
             timeout=5,
@@ -29,7 +29,7 @@ def store_error(config, event, ai_analysis, notified, notified_at):
             logger.warning(
                 "dashboard rejected error event (status %s): %s",
                 response.status_code,
-                response.text,
+                response.text[:500],
             )
-    except requests.RequestException as e:
+    except Exception as e:
         logger.warning("failed to store error in dashboard: %s", e)

@@ -61,3 +61,12 @@ def test_redis_connection_failure_treated_as_not_duplicate():
         result = is_duplicate("redis://localhost:6379/0", EVENT)
 
     assert result is False
+
+
+def test_malformed_redis_url_treated_as_not_duplicate():
+    # A malformed REDIS_URL (e.g. missing scheme) makes Redis.from_url itself
+    # raise ValueError, not redis_lib.RedisError. This must be caught too.
+    with patch("analyzer.dedup.redis_lib.Redis.from_url", side_effect=ValueError("bad url")):
+        result = is_duplicate("localhost:6379", EVENT)
+
+    assert result is False

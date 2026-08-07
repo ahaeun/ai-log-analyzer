@@ -35,3 +35,11 @@ def test_send_notification_omits_analysis_section_when_none():
 def test_send_notification_does_not_raise_on_network_failure():
     with patch("analyzer.slack_client.requests.post", side_effect=requests.ConnectionError):
         send_notification("https://hooks.slack.com/x", EVENT, "x")
+
+
+def test_send_notification_does_not_raise_on_non_request_exception():
+    # requests.post may raise something other than RequestException (e.g. a
+    # bug, or a lower-level error); this must not propagate either, since a
+    # propagated exception here would skip dashboard_client.store_error entirely.
+    with patch("analyzer.slack_client.requests.post", side_effect=RuntimeError("unexpected")):
+        send_notification("https://hooks.slack.com/x", EVENT, "x")

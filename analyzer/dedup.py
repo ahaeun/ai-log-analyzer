@@ -13,9 +13,9 @@ def _dedup_key(event):
 
 def is_duplicate(redis_url, event):
     key = _dedup_key(event)
-    client = redis_lib.Redis.from_url(redis_url)
     try:
+        client = redis_lib.Redis.from_url(redis_url)
         was_set = client.set(key, "1", ex=DEDUP_TTL_SECONDS, nx=True)
-    except redis_lib.RedisError:
+    except Exception:
         return False
     return not was_set

@@ -12,5 +12,5 @@ def send_notification(webhook_url, event, ai_analysis):
 
     try:
         requests.post(webhook_url, json={"text": text}, timeout=5)
-    except requests.RequestException as e:
+    except Exception as e:
         logger.warning("failed to send Slack notification: %s", e)
