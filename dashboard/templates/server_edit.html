@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white rounded-2xl shadow-sm p-5 max-w-xl">
+  <p class="text-sm font-medium text-gray-700 mb-3">{{ server.server_id }} 수정</p>
+  <form method="post" action="/servers/{{ server.server_id }}/edit" class="grid grid-cols-2 gap-3 text-sm">
+    <input name="host" value="{{ server.host }}" class="border rounded-lg px-3 py-2 col-span-1" required>
+    <input name="port" value="{{ server.port }}" class="border rounded-lg px-3 py-2 col-span-1" required>
+    <input name="username" value="{{ server.username }}" class="border rounded-lg px-3 py-2 col-span-1" required>
+    <input name="ssh_key_path" value="{{ server.ssh_key_path }}" class="border rounded-lg px-3 py-2 col-span-1" required>
+    <input name="log_path" value="{{ server.log_path }}" class="border rounded-lg px-3 py-2 col-span-2" required>
+    <select name="format" class="border rounded-lg px-3 py-2 col-span-1">
+      <option value="default" {% if server.format == "default" %}selected{% endif %}>default</option>
+      <option value="custom" {% if server.format == "custom" %}selected{% endif %}>custom</option>
+    </select>
+    <input name="custom_pattern" value="{{ server.custom_pattern or '' }}" class="border rounded-lg px-3 py-2 col-span-1">
+    <button class="col-span-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2">저장</button>
+  </form>
+  {% if error %}<p class="text-sm text-red-600 mt-3">{{ error }}</p>{% endif %}
+</div>
+{% endblock %}

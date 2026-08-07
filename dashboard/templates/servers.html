@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
+  <p class="text-sm font-medium text-gray-700 mb-3">서버 추가</p>
+  <form method="post" action="/servers" class="grid grid-cols-4 gap-3 text-sm">
+    <input name="server_id" placeholder="server_id" class="border rounded-lg px-3 py-2 col-span-1" required>
+    <input name="host" placeholder="host" class="border rounded-lg px-3 py-2 col-span-1" required>
+    <input name="port" placeholder="port" value="22" class="border rounded-lg px-3 py-2 col-span-1" required>
+    <input name="username" placeholder="username" class="border rounded-lg px-3 py-2 col-span-1" required>
+    <input name="ssh_key_path" placeholder="ssh_key_path" class="border rounded-lg px-3 py-2 col-span-2" required>
+    <input name="log_path" placeholder="log_path" class="border rounded-lg px-3 py-2 col-span-2" required>
+    <select name="format" class="border rounded-lg px-3 py-2 col-span-1">
+      <option value="default">default</option>
+      <option value="custom">custom</option>
+    </select>
+    <input name="custom_pattern" placeholder="custom_pattern (선택)" class="border rounded-lg px-3 py-2 col-span-3">
+    <button class="col-span-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2">추가</button>
+  </form>
+  {% if error %}<p class="text-sm text-red-600 mt-3">{{ error }}</p>{% endif %}
+</div>
+
+<div class="bg-white rounded-2xl shadow-sm p-5">
+  <table class="w-full text-sm text-left">
+    <thead class="text-gray-400">
+      <tr><th class="py-1">server_id</th><th>host</th><th>format</th><th>등록일</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for s in servers %}
+      <tr class="border-t border-gray-100">
+        <td class="py-2">{{ s.server_id }}</td>
+        <td>{{ s.host }}</td>
+        <td>{{ s.format }}</td>
+        <td>{{ s.created_at }}</td>
+        <td class="text-right space-x-2">
+          <a href="/servers/{{ s.server_id }}/edit" class="text-blue-600">수정</a>
+          <form method="post" action="/servers/{{ s.server_id }}/delete" class="inline">
+            <button class="text-red-600">삭제</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
