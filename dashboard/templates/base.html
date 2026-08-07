@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% block title %}에러 로그 대시보드{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex">
+  <aside class="w-56 bg-white border-r border-gray-100 flex flex-col">
+    <div class="px-6 py-5 font-semibold text-gray-800">에러 로그</div>
+    <nav class="flex-1 px-3 space-y-1 text-sm">
+      <a href="/" class="block rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100">대시보드</a>
+      <a href="/servers" class="block rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100">서버관리</a>
+      <a href="/errors" class="block rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100">에러이력</a>
+    </nav>
+  </aside>
+  <div class="flex-1 flex flex-col">
+    <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-end px-8 gap-4">
+      <span class="text-sm text-gray-600">{{ user.email if user else "" }}</span>
+      <form method="post" action="/logout">
+        <button class="text-sm text-gray-500 hover:text-gray-800">로그아웃</button>
+      </form>
+    </header>
+    <main class="flex-1 p-8">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>
