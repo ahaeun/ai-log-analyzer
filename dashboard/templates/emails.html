@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
+  <p class="text-sm font-medium text-gray-700 mb-3">이메일 추가</p>
+  <form method="post" action="/settings/emails" class="flex gap-3 text-sm">
+    <input name="email" placeholder="email@example.com" class="border rounded-lg px-3 py-2 flex-1" required>
+    <button class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2">추가</button>
+  </form>
+  {% if error %}<p class="text-sm text-red-600 mt-3">{{ error }}</p>{% endif %}
+</div>
+
+<div class="bg-white rounded-2xl shadow-sm p-5">
+  <table class="w-full text-sm text-left">
+    <thead class="text-gray-400">
+      <tr><th class="py-1">email</th><th>등록일</th><th></th></tr>
+    </thead>
+    <tbody>
+      <tr class="border-t border-gray-100">
+        <td class="py-2">{{ master_email }}</td>
+        <td class="text-gray-400">마스터</td>
+        <td></td>
+      </tr>
+      {% for e in emails %}
+      <tr class="border-t border-gray-100">
+        <td class="py-2">{{ e.email }}</td>
+        <td>{{ e.created_at }}</td>
+        <td class="text-right">
+          <form method="post" action="/settings/emails/{{ e.email }}/delete" class="inline">
+            <button class="text-red-600">삭제</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

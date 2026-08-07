@@ -67,6 +67,28 @@ def test_delete_server_removes_it(db_path):
     assert db.get_server(db_path, "server-a") is None
 
 
+def test_list_allowed_emails_empty_by_default(db_path):
+    assert db.list_allowed_emails(db_path) == []
+
+
+def test_add_and_list_allowed_emails_ordered_by_email(db_path):
+    db.add_allowed_email(db_path, "b@example.com")
+    db.add_allowed_email(db_path, "a@example.com")
+
+    emails = db.list_allowed_emails(db_path)
+
+    assert [row["email"] for row in emails] == ["a@example.com", "b@example.com"]
+    assert emails[0]["created_at"]
+
+
+def test_delete_allowed_email_removes_it(db_path):
+    db.add_allowed_email(db_path, "a@example.com")
+
+    db.delete_allowed_email(db_path, "a@example.com")
+
+    assert db.list_allowed_emails(db_path) == []
+
+
 def _insert_sample_error(db_path, server_id="server-a", timestamp="2026-08-06T10:00:00+09:00",
                           error_type="java.lang.NullPointerException", notified=False, notified_at=None):
     db.insert_error(

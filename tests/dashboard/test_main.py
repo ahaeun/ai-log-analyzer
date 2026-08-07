@@ -8,7 +8,7 @@ from dashboard.main import create_app
 def config(tmp_path):
     return DashboardConfig(db_path=str(tmp_path / "test.db"), slack_client_id="c",
                             slack_client_secret="s", slack_team_id="T1",
-                            allowed_emails=["a@example.com"], session_secret="secret", api_key="key")
+                            master_email="master@example.com", session_secret="secret", api_key="key")
 
 
 def test_create_app_initializes_db_and_mounts_routes(config):

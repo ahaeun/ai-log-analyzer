@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from dashboard import auth
+from dashboard import auth, db
 from dashboard.templating import templates
 
 auth_router = APIRouter()
@@ -36,10 +36,14 @@ def auth_callback(request: Request, code: str = None, state: str = None):
     except Exception:
         return RedirectResponse("/login?error=slack", status_code=303)
 
-    if not auth.is_authorized(userinfo, config):
+    allowed_emails = [row["email"] for row in db.list_allowed_emails(config.db_path)]
+    if not auth.is_authorized(userinfo, config, allowed_emails):
         return HTMLResponse("<h1>접근 권한이 없습니다</h1>", status_code=403)
 
-    request.session["user"] = {"email": userinfo["email"]}
+    request.session["user"] = {
+        "email": userinfo["email"],
+        "is_master": userinfo["email"] == config.master_email,
+    }
     return RedirectResponse("/", status_code=303)
 
 

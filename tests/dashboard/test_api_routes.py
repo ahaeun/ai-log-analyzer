@@ -9,7 +9,7 @@ from dashboard.routes.api import api_router
 CONFIG = DashboardConfig(
     db_path="",  # overwritten per test
     slack_client_id="c", slack_client_secret="s", slack_team_id="T1",
-    allowed_emails=["a@example.com"], session_secret="secret", api_key="test-api-key",
+    master_email="master@example.com", session_secret="secret", api_key="test-api-key",
 )
 
 

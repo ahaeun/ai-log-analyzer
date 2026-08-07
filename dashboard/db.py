@@ -29,6 +29,14 @@ def init_db(db_path):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS allowed_emails (
+                email TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS errors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 server_id TEXT NOT NULL,
@@ -106,6 +114,36 @@ def delete_server(db_path, server_id):
     conn = get_connection(db_path)
     try:
         conn.execute("DELETE FROM servers WHERE server_id = ?", (server_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def list_allowed_emails(db_path):
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute("SELECT * FROM allowed_emails ORDER BY email").fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def add_allowed_email(db_path, email):
+    conn = get_connection(db_path)
+    try:
+        conn.execute(
+            "INSERT INTO allowed_emails (email, created_at) VALUES (?, ?)",
+            (email, _now_iso()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_allowed_email(db_path, email):
+    conn = get_connection(db_path)
+    try:
+        conn.execute("DELETE FROM allowed_emails WHERE email = ?", (email,))
         conn.commit()
     finally:
         conn.close()

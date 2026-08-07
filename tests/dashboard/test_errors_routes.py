@@ -10,7 +10,7 @@ from dashboard.routes.errors_routes import errors_router
 
 CONFIG_KWARGS = dict(
     slack_client_id="c", slack_client_secret="s", slack_team_id="T1",
-    allowed_emails=["a@example.com"], session_secret="secret", api_key="k",
+    master_email="master@example.com", session_secret="secret", api_key="k",
 )
 
 

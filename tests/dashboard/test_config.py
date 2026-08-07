@@ -8,7 +8,7 @@ REQUIRED_ENV = {
     "SLACK_CLIENT_ID": "client-id",
     "SLACK_CLIENT_SECRET": "client-secret",
     "SLACK_TEAM_ID": "T12345",
-    "DASHBOARD_ALLOWED_EMAILS": "a@example.com, b@example.com",
+    "DASHBOARD_MASTER_EMAIL": "master@example.com",
     "DASHBOARD_SESSION_SECRET": "session-secret",
     "DASHBOARD_API_KEY": "api-key",
 }
@@ -29,7 +29,7 @@ def test_load_config_from_env(set_required_env, monkeypatch):
     assert config.slack_client_id == "client-id"
     assert config.slack_client_secret == "client-secret"
     assert config.slack_team_id == "T12345"
-    assert config.allowed_emails == ["a@example.com", "b@example.com"]
+    assert config.master_email == "master@example.com"
     assert config.session_secret == "session-secret"
     assert config.api_key == "api-key"
 

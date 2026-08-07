@@ -13,6 +13,10 @@ class NotAuthenticated(Exception):
     pass
 
 
+class NotAuthorized(Exception):
+    pass
+
+
 def generate_state():
     return secrets.token_urlsafe(24)
 
@@ -61,16 +65,24 @@ def fetch_userinfo(access_token):
     }
 
 
-def is_authorized(userinfo, config):
+def is_authorized(userinfo, config, allowed_emails):
     if userinfo.get("team_id") != config.slack_team_id:
         return False
-    if userinfo.get("email") not in config.allowed_emails:
-        return False
-    return True
+    email = userinfo.get("email")
+    if email == config.master_email:
+        return True
+    return email in allowed_emails
 
 
 def require_session(request: Request):
     user = request.session.get("user")
     if not user:
         raise NotAuthenticated()
+    return user
+
+
+def require_master(request: Request):
+    user = require_session(request)
+    if not user.get("is_master"):
+        raise NotAuthorized()
     return user

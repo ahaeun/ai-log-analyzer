@@ -13,6 +13,9 @@
       <a href="/" class="block rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100">대시보드</a>
       <a href="/servers" class="block rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100">서버관리</a>
       <a href="/errors" class="block rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100">에러이력</a>
+      {% if user and user.is_master %}
+      <a href="/settings/emails" class="block rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100">이메일 관리</a>
+      {% endif %}
     </nav>
   </aside>
   <div class="flex-1 flex flex-col">

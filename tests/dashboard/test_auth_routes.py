@@ -5,21 +5,28 @@ from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.testclient import TestClient
 
+from dashboard import db
 from dashboard.config import DashboardConfig
 from dashboard.routes.auth_routes import auth_router
 
-CONFIG = DashboardConfig(
-    db_path="x", slack_client_id="client-123", slack_client_secret="secret-456",
-    slack_team_id="T12345", allowed_emails=["a@example.com"],
-    session_secret="test-session-secret", api_key="k",
-)
+
+@pytest.fixture
+def config(tmp_path):
+    config = DashboardConfig(
+        db_path=str(tmp_path / "test.db"), slack_client_id="client-123", slack_client_secret="secret-456",
+        slack_team_id="T12345", master_email="master@example.com",
+        session_secret="test-session-secret", api_key="k",
+    )
+    db.init_db(config.db_path)
+    db.add_allowed_email(config.db_path, "a@example.com")
+    return config
 
 
 @pytest.fixture
-def client():
+def client(config):
     app = FastAPI()
-    app.state.config = CONFIG
-    app.add_middleware(SessionMiddleware, secret_key=CONFIG.session_secret)
+    app.state.config = config
+    app.add_middleware(SessionMiddleware, secret_key=config.session_secret)
     app.include_router(auth_router)
     return TestClient(app, follow_redirects=False)
 

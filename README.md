@@ -20,7 +20,7 @@ Spring Boot 서버 로그에서 에러가 발생하면 자동으로 감지해 Op
 |---|---|
 | **watcher** | 중앙 프로세스 하나가 SSH로 여러 원격 서버의 로그 파일을 직접 tail합니다. 감시할 서버 목록은 dashboard의 `GET /api/servers`를 30초마다 폴링해 동적으로 갱신합니다(대시보드에서 서버를 등록/삭제하면 자동 반영). |
 | **analyzer** | watcher가 보낸 에러를 받으면 즉시 `202`를 응답하고, 백그라운드에서 OpenAI로 원인을 분석하고, Redis로 10분 내 동일 에러(서버+타입+메시지) 중복 알림을 억제하고, Slack Webhook으로 알림을 보낸 뒤 dashboard에 저장을 위임합니다. |
-| **dashboard** | 서버 등록 관리(등록/수정/삭제), 에러 이력 조회(필터+페이지네이션), Slack 로그인(워크스페이스+이메일 허용목록 제한), 통계 카드/추이 차트가 있는 홈 화면을 제공합니다. |
+| **dashboard** | 서버 등록 관리(등록/수정/삭제), 에러 이력 조회(필터+페이지네이션), Slack 로그인(워크스페이스+이메일 허용목록 제한, 마스터 이메일이 화면에서 허용 이메일을 직접 추가/삭제), 통계 카드/추이 차트가 있는 홈 화면을 제공합니다. |
 
 세 컴포넌트는 서로의 API 계약(스키마)에 맞춰 통신하며, 그 계약은 `.claude/memory/`에 문서화되어 있습니다.
 
@@ -62,7 +62,7 @@ python3 -m pip install -r requirements.txt
 |---|---|
 | `SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET` | Slack OAuth 앱 자격증명 (Sign in with Slack) |
 | `SLACK_TEAM_ID` | 로그인을 허용할 Slack 워크스페이스 ID |
-| `DASHBOARD_ALLOWED_EMAILS` | 로그인을 허용할 이메일 목록 (쉼표로 구분) |
+| `DASHBOARD_MASTER_EMAIL` | 항상 로그인이 허용되는 마스터 이메일. `/settings/emails`에서 나머지 허용 이메일을 추가/삭제할 수 있음 |
 | `DASHBOARD_SESSION_SECRET` | 로그인 세션 쿠키 서명 키 |
 | `DASHBOARD_API_KEY` | watcher/analyzer가 이 값을 `X-API-Key`로 보내야 함 |
 | `DASHBOARD_DB_PATH` (선택) | SQLite 파일 경로, 기본값 `dashboard/data.db` |

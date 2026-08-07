@@ -3,17 +3,20 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from dashboard.auth import (
+    NotAuthenticated,
+    NotAuthorized,
     build_authorize_url,
     exchange_code_for_token,
     fetch_userinfo,
     generate_state,
     is_authorized,
+    require_master,
 )
 from dashboard.config import DashboardConfig
 
 CONFIG = DashboardConfig(
     db_path="x", slack_client_id="client-123", slack_client_secret="secret-456",
-    slack_team_id="T12345", allowed_emails=["a@example.com"],
+    slack_team_id="T12345", master_email="master@example.com",
     session_secret="s", api_key="k",
 )
 
@@ -94,12 +97,43 @@ def test_fetch_userinfo_extracts_email_and_team_id():
 
 
 def test_is_authorized_true_for_matching_team_and_allowed_email():
-    assert is_authorized({"email": "a@example.com", "team_id": "T12345"}, CONFIG) is True
+    allowed = ["a@example.com"]
+    assert is_authorized({"email": "a@example.com", "team_id": "T12345"}, CONFIG, allowed) is True
 
 
 def test_is_authorized_false_for_wrong_team():
-    assert is_authorized({"email": "a@example.com", "team_id": "T99999"}, CONFIG) is False
+    allowed = ["a@example.com"]
+    assert is_authorized({"email": "a@example.com", "team_id": "T99999"}, CONFIG, allowed) is False
 
 
 def test_is_authorized_false_for_email_not_in_allowlist():
-    assert is_authorized({"email": "stranger@example.com", "team_id": "T12345"}, CONFIG) is False
+    allowed = ["a@example.com"]
+    assert is_authorized({"email": "stranger@example.com", "team_id": "T12345"}, CONFIG, allowed) is False
+
+
+def test_is_authorized_true_for_master_email_even_when_not_in_allowlist():
+    allowed = []
+    assert is_authorized(
+        {"email": "master@example.com", "team_id": "T12345"}, CONFIG, allowed
+    ) is True
+
+
+class _FakeRequest:
+    def __init__(self, session):
+        self.session = session
+
+
+def test_require_master_raises_not_authenticated_when_not_logged_in():
+    with pytest.raises(NotAuthenticated):
+        require_master(_FakeRequest({}))
+
+
+def test_require_master_raises_not_authorized_when_logged_in_but_not_master():
+    session = {"user": {"email": "a@example.com", "is_master": False}}
+    with pytest.raises(NotAuthorized):
+        require_master(_FakeRequest(session))
+
+
+def test_require_master_returns_user_when_master():
+    user = {"email": "master@example.com", "is_master": True}
+    assert require_master(_FakeRequest({"user": user})) == user
