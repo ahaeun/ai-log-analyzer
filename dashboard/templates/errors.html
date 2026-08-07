@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
+  <form method="get" action="/errors" class="grid grid-cols-4 gap-3 text-sm">
+    <select name="server_id" class="border rounded-lg px-3 py-2">
+      <option value="">전체 서버</option>
+      {% for s in servers %}
+      <option value="{{ s.server_id }}" {% if s.server_id == filters.server_id %}selected{% endif %}>{{ s.server_id }}</option>
+      {% endfor %}
+    </select>
+    <input type="date" name="date_from" value="{{ filters.date_from or '' }}" class="border rounded-lg px-3 py-2">
+    <input type="date" name="date_to" value="{{ filters.date_to or '' }}" class="border rounded-lg px-3 py-2">
+    <input type="text" name="error_type" placeholder="에러 타입 검색" value="{{ filters.error_type or '' }}" class="border rounded-lg px-3 py-2">
+    <button class="col-span-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2">검색</button>
+  </form>
+</div>
+
+<div class="bg-white rounded-2xl shadow-sm p-5">
+  <table class="w-full text-sm text-left">
+    <thead class="text-gray-400">
+      <tr><th class="py-1">시각</th><th>서버</th><th>타입</th><th>메시지</th><th>알림</th></tr>
+    </thead>
+    <tbody>
+      {% for e in errors %}
+      <tr class="border-t border-gray-100">
+        <td class="py-2">{{ e.timestamp }}</td>
+        <td>{{ e.server_id }}</td>
+        <td>{{ e.error_type }}</td>
+        <td>{{ e.message }}</td>
+        <td>{{ "발송됨" if e.notified else "-" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
