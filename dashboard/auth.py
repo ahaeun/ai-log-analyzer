@@ -24,6 +24,7 @@ def generate_state():
 def build_authorize_url(config, redirect_uri, state):
     params = {
         "client_id": config.slack_client_id,
+        "response_type": "code",
         "scope": "openid email profile",
         "redirect_uri": redirect_uri,
         "state": state,

@@ -36,6 +36,7 @@ def test_build_authorize_url_includes_required_params():
     assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == "https://slack.com/openid/connect/authorize"
     params = parse_qs(parsed.query)
     assert params["client_id"] == ["client-123"]
+    assert params["response_type"] == ["code"]
     assert params["state"] == ["state-xyz"]
     assert params["redirect_uri"] == ["https://dash.example.com/auth/slack/callback"]
     assert params["scope"] == ["openid email profile"]
