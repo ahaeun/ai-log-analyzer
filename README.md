@@ -34,10 +34,39 @@ Spring Boot 서버 로그에서 에러가 발생하면 자동으로 감지해 Op
 
 ```bash
 python3 -m pip install -r requirements.txt
-docker compose up -d   # Redis 실행 (analyzer의 중복 알림 억제용)
+```
+
+세 서비스를 각각 직접 실행하려면 [구성 요소별 실행 방법](#구성-요소별-실행-방법)을 보시고, dashboard+analyzer+Redis를 한 번에 띄우고 싶다면 [Docker Compose로 한번에 띄우기](#docker-compose로-한번에-띄우기-dashboard--analyzer--redis)를 보세요.
+
+## Docker Compose로 한번에 띄우기 (dashboard + analyzer + Redis)
+
+watcher는 실제 SSH 접속 대상 서버와 개인키가 있어야 의미가 있어서 컨테이너에는 포함하지 않았습니다. dashboard, analyzer, Redis만 컨테이너로 띄우고, watcher는 필요할 때 로컬에서 직접 실행하는 구조입니다.
+
+```bash
+cp .env.example .env
+# .env를 열어 실제 값(OpenAI 키, Slack 정보 등)을 채워넣으세요.
+
+docker compose up -d --build
+```
+
+- dashboard: http://localhost:8000 (SQLite 파일은 `dashboard_data`라는 named volume에 저장되어 컨테이너를 내렸다 올려도 유지됩니다)
+- analyzer: http://localhost:8001
+- Redis: localhost:6379
+
+`.env`의 `DASHBOARD_API_KEY`/`ANALYZER_API_KEY`는 각각 dashboard/analyzer 컨테이너 양쪽에 자동으로 전달되고, `REDIS_URL`/`DASHBOARD_URL`은 compose 네트워크 안에서 서비스 이름(`redis`, `dashboard`)으로 자동 연결되므로 따로 설정할 필요가 없습니다.
+
+watcher를 이 상태에서 로컬로 실행하려면 [watcher 실행 방법](#3-watcher)의 YAML에서 `registry_url: http://localhost:8000/api/servers`, `analyzer_endpoint: http://localhost:8001/api/errors`처럼 그대로 `localhost` 포트를 쓰면 됩니다(포트가 호스트로 노출되어 있기 때문입니다).
+
+내리려면:
+
+```bash
+docker compose down        # 컨테이너만 정리 (데이터는 유지)
+docker compose down -v     # 컨테이너 + SQLite 데이터까지 완전히 삭제
 ```
 
 ## 구성 요소별 실행 방법
+
+로컬 파이썬 프로세스로 직접 실행하는 방법입니다(Docker Compose를 쓴다면 dashboard/analyzer는 이미 떠 있으니 이 섹션은 watcher만 보시면 됩니다).
 
 ### 1. dashboard (먼저 띄우는 걸 추천 — watcher/analyzer가 이 서비스를 호출합니다)
 
@@ -128,6 +157,9 @@ docs/superpowers/
   specs/       설계 문서 (브레인스토밍 결과)
   plans/       구현 계획
 .claude/memory/  에이전트 간 API 계약 문서
+Dockerfile         dashboard/analyzer 공용 이미지 (watcher는 컨테이너화하지 않음)
+docker-compose.yml dashboard + analyzer + Redis
+.env.example       docker compose용 환경변수 템플릿
 ```
 
 ## 참고

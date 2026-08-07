@@ -3,3 +3,38 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  dashboard:
+    build: .
+    command: ["uvicorn", "dashboard.main:app_factory", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID}
+      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET}
+      SLACK_TEAM_ID: ${SLACK_TEAM_ID}
+      DASHBOARD_ALLOWED_EMAILS: ${DASHBOARD_ALLOWED_EMAILS}
+      DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET}
+      DASHBOARD_API_KEY: ${DASHBOARD_API_KEY}
+      DASHBOARD_DB_PATH: /data/dashboard.db
+    volumes:
+      - dashboard_data:/data
+
+  analyzer:
+    build: .
+    command: ["uvicorn", "analyzer.main:app_factory", "--factory", "--host", "0.0.0.0", "--port", "8001"]
+    ports:
+      - "8001:8001"
+    depends_on:
+      - redis
+      - dashboard
+    environment:
+      ANALYZER_API_KEY: ${ANALYZER_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      REDIS_URL: redis://redis:6379/0
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+      DASHBOARD_URL: http://dashboard:8000
+      DASHBOARD_API_KEY: ${DASHBOARD_API_KEY}
+
+volumes:
+  dashboard_data:
