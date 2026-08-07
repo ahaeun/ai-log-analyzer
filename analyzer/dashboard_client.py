@@ -1,0 +1,29 @@
+import logging
+
+import requests
+
+logger = logging.getLogger(__name__)
+
+
+def store_error(config, event, ai_analysis, notified, notified_at):
+    payload = {
+        "server_id": event.server_id,
+        "timestamp": event.timestamp,
+        "log_level": event.log_level,
+        "error_type": event.error_type,
+        "message": event.message,
+        "stack_trace": event.stack_trace,
+        "raw_log": event.raw_log,
+        "ai_analysis": ai_analysis,
+        "notified": notified,
+        "notified_at": notified_at,
+    }
+    try:
+        requests.post(
+            f"{config.dashboard_url}/api/errors",
+            json=payload,
+            headers={"X-API-Key": config.dashboard_api_key},
+            timeout=5,
+        )
+    except requests.RequestException as e:
+        logger.warning("failed to store error in dashboard: %s", e)
