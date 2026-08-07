@@ -71,6 +71,8 @@ python3 -m pip install -r requirements.txt
 uvicorn dashboard.main:app_factory --factory --port 8000
 ```
 
+**로그인 허용 이메일 관리**: `DASHBOARD_MASTER_EMAIL`로 지정한 이메일은 허용 목록과 무관하게 항상 로그인됩니다. 그 외 허용할 이메일은 SQLite에 저장되며, 마스터 이메일로 로그인한 뒤 `/settings/emails` 화면에서 추가/삭제합니다 (사이드바에는 마스터로 로그인했을 때만 "이메일 관리" 링크가 보입니다).
+
 ### analyzer
 
 | 환경변수 | 설명 |
@@ -140,5 +142,4 @@ docker-compose.yml  dashboard + analyzer + Redis
 학습/실습용 토이 프로젝트로, 아래는 의도적으로 다루지 않습니다:
 
 - Slack/dashboard 전송 실패에 대한 재시도 큐 (watcher만 자체 재시도 큐를 가지고 있음)
-- 대시보드 내 사용자 관리 화면 (허용 이메일은 환경변수로만 관리)
 - Redis/OpenAI/Slack 계정 자체의 발급 절차
